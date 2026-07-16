@@ -1,0 +1,58 @@
+# Android build
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+
+# Rust build
+target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+*.swp
+*.swo
+*~
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.jks
+*.keystore
+secrets.properties
+
+# Temp
+*.tmp
+*.temp
+*.log
+
+# Screenshots
+*.png
+!app/src/main/res/**/*.png
+
+# Termux core (large directory, can be cloned separately)
+termux-core/
+
+# Scripts (development tools)
+scripts/
+
+# Test files
+*.test
+*.spec.js
+node_modules/
+
+# Large assets (downloaded by CI/CD)
+app/src/main/assets/bootstrap-aarch64.zip
+app/src/main/assets/ubuntu-rootfs/
+app/src/main/assets/ubuntu-rootfs-placeholder/

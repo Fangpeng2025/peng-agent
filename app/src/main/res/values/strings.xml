@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">鹏Agent</string>
+    <string name="accessibility_service_description">鹏Agent手机自动化服务，用于执行AI生成的手机操作指令，如自动点击、输入、滑动等。需要无障碍权限才能正常工作。</string>
+</resources>
