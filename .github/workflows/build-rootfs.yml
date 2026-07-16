@@ -1,4 +1,4 @@
-name: Build Ubuntu Rootfs and APK
+name: Build APK
 
 on:
   push:
@@ -10,19 +10,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      ubuntu_version:
-        description: 'Ubuntu version'
-        default: 'jammy'
-        type: choice
-        options: [ jammy, noble ]
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_TOOLCHAIN: stable
 
 jobs:
-  build-daemon:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,178 +45,6 @@ jobs:
           
           cargo build --release --target aarch64-linux-android -p peng-daemon
 
-      - name: Upload peng-daemon
-        uses: actions/upload-artifact@v4
-        with:
-          name: peng-daemon
-          path: target/aarch64-linux-android/release/peng-daemon
-
-  build-proot:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build proot-static
-        run: |
-          # 安装依赖
-          sudo apt-get update
-          sudo apt-get install -y git make gcc tcc musl-tools
-          
-          # 克隆 proot
-          git clone https://github.com/proot-me/proot.git
-          cd proot
-          
-          # 使用 musl 静态编译
-          # 首先安装 proot 的依赖
-          git submodule update --init --recursive
-          
-          # 编译静态版本（使用 musl）
-          # 创建 V1_load_struct 的替代实现
-          mkdir -p src
-          
-          # 下载预编译的 proot-static（更可靠）
-          # 或者使用 termux 的 proot
-          
-          # 尝试从 termux-packages 获取
-          # 实际上我们需要一个为 Android ARM64 编译的 proot
-          
-      - name: Download proot binary
-        run: |
-          # 使用 Termux 的 proot - 它是静态编译的
-          # Termux packages 的 proot 可以在 Android 上运行
-          mkdir -p proot-bin
-          
-          # 从 Termux 的 apt 仓库下载 proot 包
-          # Termux 的包格式是 .deb，里面包含预编译的二进制
-          curl -L -o proot.deb "http://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.0-46_aarch64.deb"
-          
-          # 解压 deb 包
-          ar x proot.deb
-          tar -xzf data.tar.xz
-          
-          # 复制二进制文件
-          cp ./data/data/com.termux/files/usr/bin/proot proot-bin/proot
-          
-          # 测试文件是否存在
-          ls -la proot-bin/
-          
-      - name: Upload proot
-        uses: actions/upload-artifact@v4
-        with:
-          name: proot
-          path: proot-bin/proot
-
-  build-rootfs:
-    runs-on: ubuntu-latest
-    needs: [build-daemon, build-proot]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download peng-daemon
-        uses: actions/download-artifact@v4
-        with:
-          name: peng-daemon
-          path: .
-
-      - name: Download proot
-        uses: actions/download-artifact@v4
-        with:
-          name: proot
-          path: .
-
-      - name: Build Ubuntu rootfs
-        run: |
-          chmod +x peng-daemon proot
-          
-          UBUNTU_VERSION="${{ inputs.ubuntu_version || 'jammy' }}"
-          ROOTFS_DIR="ubuntu-rootfs"
-          
-          sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support
-          
-          # Create rootfs
-          sudo debootstrap --arch=arm64 --variant=minbase --foreign ${UBUNTU_VERSION} ${ROOTFS_DIR} http://ports.ubuntu.com/ubuntu-ports
-          
-          sudo cp /usr/bin/qemu-aarch64-static ${ROOTFS_DIR}/usr/bin/
-          sudo chroot ${ROOTFS_DIR} /debootstrap/debootstrap --second-stage
-          
-          # Install packages
-          sudo chroot ${ROOTFS_DIR} /bin/bash -c "
-            apt-get update
-            apt-get install -y --no-install-recommends \
-              python3 python3-pip python3-venv \
-              nodejs npm \
-              ffmpeg \
-              git curl wget \
-              sqlite3 \
-              ca-certificates
-              
-            # 安装 Python 包
-            pip3 install --break-system-packages numpy pandas requests Pillow || true
-            
-            # 清理
-            apt-get clean
-            rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/log/* /var/cache/apt/archives/*.deb
-          "
-          
-          sudo rm -f ${ROOTFS_DIR}/usr/bin/qemu-aarch64-static
-          
-          # Setup directories
-          sudo mkdir -p ${ROOTFS_DIR}/root ${ROOTFS_DIR}/tmp ${ROOTFS_DIR}/data/peng
-          sudo chmod 1777 ${ROOTFS_DIR}/tmp
-          
-          # Install peng-daemon
-          sudo cp peng-daemon ${ROOTFS_DIR}/root/
-          sudo chmod +x ${ROOTFS_DIR}/root/peng-daemon
-          
-          # Create config
-          sudo tee ${ROOTFS_DIR}/etc/os-release > /dev/null << 'EOF'
-          PRETTY_NAME="PengAgent Ubuntu 22.04"
-          NAME="Ubuntu"
-          VERSION_ID="22.04"
-          ID=ubuntu
-          ID_LIKE=debian
-          EOF
-          
-          # Create startup script
-          sudo tee ${ROOTFS_DIR}/root/start-daemon.sh > /dev/null << 'SCRIPT'
-          #!/bin/bash
-          export PATH=/usr/bin:/bin
-          export HOME=/root
-          export LANG=C.UTF-8
-          export LD_LIBRARY_PATH=/lib:/usr/lib:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu
-          
-          # 启动 daemon
-          exec /root/peng-daemon
-          SCRIPT
-          sudo chmod +x ${ROOTFS_DIR}/root/start-daemon.sh
-          
-          # Create tarball
-          sudo tar -czf ubuntu-rootfs.tar.gz ubuntu-rootfs
-          ls -lh ubuntu-rootfs.tar.gz
-          
-          # 创建 proot 包（单独上传）
-          mkdir -p proot-pkg
-          cp proot proot-pkg/
-
-      - name: Upload rootfs
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu-rootfs
-          path: ubuntu-rootfs.tar.gz
-
-      - name: Upload proot package
-        uses: actions/upload-artifact@v4
-        with:
-          name: proot-bin
-          path: proot-pkg/proot
-
-  build-apk:
-    runs-on: ubuntu-latest
-    needs: build-rootfs
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -233,45 +54,39 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Download rootfs
-        uses: actions/download-artifact@v4
-        with:
-          name: ubuntu-rootfs
-          path: app/src/main/assets/
+      - name: Download Termux Bootstrap
+        run: |
+          # 下载最新的 Termux Bootstrap
+          curl -L -o app/src/main/assets/bootstrap-aarch64.zip \
+            "https://github.com/termux/termux-packages/releases/download/bootstrap-2026.07.12-r1%2Bapt.android-7/bootstrap-aarch64.zip"
 
-      - name: Download proot
-        uses: actions/download-artifact@v4
-        with:
-          name: proot-bin
-          path: app/src/main/assets/
+      - name: Copy peng-daemon to assets
+        run: |
+          cp target/aarch64-linux-android/release/peng-daemon app/src/main/assets/
 
       - name: Build APK
         run: |
-          # 确保 assets 目录正确
-          ls -la app/src/main/assets/
-          
-          # 构建 APK
           ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: peng-agent-debug
           path: app/build/outputs/apk/debug/app-debug.apk
 
   release:
-    needs: [build-rootfs, build-apk]
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Download all artifacts
+      - name: Download APK
         uses: actions/download-artifact@v4
+        with:
+          name: peng-agent-debug
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            ubuntu-rootfs/ubuntu-rootfs.tar.gz
-            app-debug/app-debug.apk
+          files: app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

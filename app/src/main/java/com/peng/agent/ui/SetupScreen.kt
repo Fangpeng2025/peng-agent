@@ -6,48 +6,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.peng.agent.terminal.InstallTerminal
+import com.peng.agent.terminal.TerminalScreen
+import com.peng.agent.terminal.TerminalBuffer
 import com.peng.agent.setup.UbuntuManager
-import kotlinx.coroutines.launch
 
 /**
- * 初始化安装界面
+ * 初始化安装界面 - 终端风格
  */
 @Composable
 fun SetupScreen(
     onSetupComplete: () -> Unit
 ) {
-    var state by remember { mutableStateOf<UbuntuManager.SetupState>(UbuntuManager.SetupState.NotStarted) }
-    var progress by remember { mutableStateOf(0f) }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    
-    // 启动安装流程
-    LaunchedEffect(Unit) {
-        if (UbuntuManager.isReady()) {
-            state = UbuntuManager.SetupState.Ready
-        } else {
-            UbuntuManager.performSetup(context) { newState ->
-                state = newState
-                progress = when (newState) {
-                    is UbuntuManager.SetupState.NotStarted -> 0f
-                    is UbuntuManager.SetupState.ExtractingProot -> 0.2f
-                    is UbuntuManager.SetupState.ExtractingUbuntu -> 0.6f
-                    is UbuntuManager.SetupState.Ready -> 1f
-                    is UbuntuManager.SetupState.Error -> progress
-                    is UbuntuManager.SetupState.Progress -> (newState as UbuntuManager.SetupState.Progress).percent / 100f
-                }
-            }
-        }
-    }
-    
-    // 当准备好时，触发完成回调
-    if (state is UbuntuManager.SetupState.Ready) {
-        LaunchedEffect(Unit) {
-            onSetupComplete()
-        }
-    }
+    var showTerminal by remember { mutableStateOf(false) }
     
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -56,90 +29,49 @@ fun SetupScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Logo
+            // 标题栏
             Text(
-                text = "鹏",
-                style = MaterialTheme.typography.displayLarge,
+                text = "鹏 Agent",
+                style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // 状态文字
-            val statusText = when (state) {
-                is UbuntuManager.SetupState.NotStarted -> "准备中..."
-                is UbuntuManager.SetupState.ExtractingProot -> "安装运行环境..."
-                is UbuntuManager.SetupState.ExtractingUbuntu -> "安装 Ubuntu 系统..."
-                is UbuntuManager.SetupState.Progress -> (state as UbuntuManager.SetupState.Progress).message
-                is UbuntuManager.SetupState.Ready -> "就绪!"
-                is UbuntuManager.SetupState.Error -> "错误: ${(state as UbuntuManager.SetupState.Error).message}"
-            }
+            Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = statusText,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (state is UbuntuManager.SetupState.Error) 
-                    MaterialTheme.colorScheme.error 
-                else 
-                    MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
+                text = "首次启动需要安装 Ubuntu 环境",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            // 进度条
-            if (state !is UbuntuManager.SetupState.Ready && state !is UbuntuManager.SetupState.Error) {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth(0.6f)
-                        .height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+            // 终端区域
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                colors = CardDefaults.cardColors(
+                    containerColor = androidx.compose.ui.graphics.Color(0xFF1E1E1E)
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Text(
-                    text = "${(progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            ) {
+                InstallTerminal(
+                    onComplete = onSetupComplete,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             
-            // 错误时显示重试按钮
-            if (state is UbuntuManager.SetupState.Error) {
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Button(
-                    onClick = {
-                        state = UbuntuManager.SetupState.NotStarted
-                        progress = 0f
-                        scope.launch {
-                            UbuntuManager.performSetup(context) { newState ->
-                                state = newState
-                                progress = when (newState) {
-                                    is UbuntuManager.SetupState.NotStarted -> 0f
-                                    is UbuntuManager.SetupState.ExtractingProot -> 0.2f
-                                    is UbuntuManager.SetupState.ExtractingUbuntu -> 0.6f
-                                    is UbuntuManager.SetupState.Ready -> 1f
-                                    is UbuntuManager.SetupState.Error -> progress
-                                    is UbuntuManager.SetupState.Progress -> (newState as UbuntuManager.SetupState.Progress).percent / 100f
-                                }
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("重试")
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 提示信息
+            Text(
+                text = "预计安装时间: 5-10 分钟 (需要下载约 200MB)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+            )
         }
     }
 }
