@@ -67,6 +67,17 @@ impl<W: Write + Send> StreamCallback for IpcCallback<W> {
     }
 }
 
+/// 简单回调 - 不做实际流式输出，用于非流式调用
+struct SimpleCallback;
+
+impl StreamCallback for SimpleCallback {
+    fn on_token(&self, _token: &str) {}
+    fn on_tool_start(&self, _name: &str, _args: &str) {}
+    fn on_tool_end(&self, _name: &str, _result: &str) {}
+    fn on_complete(&self, _response: &str) {}
+    fn on_error(&self, _message: &str) {}
+}
+
 // ============================================================================
 // IPC Server
 // ============================================================================
@@ -196,8 +207,9 @@ fn handle_chat(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &
         .and_then(|h| serde_json::from_value(h.clone()).ok())
         .unwrap_or_default();
     
-    // 创建简单的回调（不做流式输出，简化处理）
-    let callback = SimpleCallback::new(writer);
+    // 创建回调用于流式输出
+    let writer_clone = writer.try_clone()?;
+    let callback = IpcCallback::new(writer_clone);
     
     // 创建 tokio runtime 来执行异步调用
     let rt = Runtime::new().context("Failed to create tokio runtime")?;
@@ -232,37 +244,6 @@ fn handle_chat(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &
     Ok(())
 }
 
-/// 简单回调 - 不做实际流式输出
-struct SimpleCallback<'a, W: Write>(&'a mut W);
-
-impl<'a, W: Write> SimpleCallback<'a, W> {
-    fn new(writer: &'a mut W) -> Self {
-        Self(writer)
-    }
-}
-
-impl<'a, W: Write> StreamCallback for SimpleCallback<'a, W> {
-    fn on_token(&self, _token: &str) {
-        // 不做流式输出
-    }
-    
-    fn on_tool_start(&self, _name: &str, _args: &str) {
-        // 不做流式输出
-    }
-    
-    fn on_tool_end(&self, _name: &str, _result: &str) {
-        // 不做流式输出
-    }
-    
-    fn on_complete(&self, _response: &str) {
-        // 不做流式输出
-    }
-    
-    fn on_error(&self, _message: &str) {
-        // 不做流式输出
-    }
-}
-
 /// 处理工具调用请求
 fn handle_call_tool(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &mut impl Write) -> Result<()> {
     let params = &request.params;
@@ -273,6 +254,9 @@ fn handle_call_tool(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writ
     
     // 创建 tokio runtime 来执行异步调用
     let rt = Runtime::new().context("Failed to create tokio runtime")?;
+    
+    // 使用简单回调
+    let callback = SimpleCallback;
     
     // 获取 agent 并调用工具
     let result = {
@@ -320,20 +304,23 @@ fn handle_abort(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: 
 
 /// 处理获取状态请求
 fn handle_get_status(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &mut impl Write) -> Result<()> {
-    let status: serde_json::Value = {
+    let status_json: serde_json::Value = {
         let agent_guard = agent.lock().unwrap();
         if let Some(agent) = agent_guard.as_ref() {
-            // 将 KernelStatus 转换为 JSON
             let status: KernelStatus = agent.get_status();
             serde_json::to_value(status).unwrap_or_else(|_| {
-                serde_json::json!({"status": "initialized"})
+                serde_json::json!({"initialized": true, "message": "运行中"})
             })
         } else {
-            serde_json::json!({"status": "not_initialized"})
+            serde_json::json!({
+                "initialized": false,
+                "model": "",
+                "message": "内核尚未初始化"
+            })
         }
     };
     
-    let response = Response::result(request.id, status);
+    let response = Response::result(request.id, status_json);
     write_response(writer, &response)?;
     Ok(())
 }
