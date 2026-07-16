@@ -14,8 +14,11 @@ local.properties
 
 # Rust build
 target/
+crates/target/
 **/*.rs.bk
 Cargo.lock
+*.pdb
+*.rlib
 
 # IDE
 *.swp

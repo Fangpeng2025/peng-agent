@@ -1,1 +1,0 @@
-{"rustc":2540017709349010501,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[966925859616469517,"build_script_build",false,363201963289760129]],"local":[{"RerunIfChanged":{"output":"aarch64-linux-android\\release\\build\\ahash-a4f6065646980d79\\output","paths":["build.rs"]}}],"rustflags":[],"config":0,"compile_kind":0}
