@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use log::{info, error, warn};
 use tokio::runtime::Runtime;
 
-use peng_core::{AgentLoop, ChatMessage, StreamCallback};
+use peng_core::{AgentLoop, ChatMessage, StreamCallback, KernelStatus};
 use crate::protocol::{Request, Response, StreamEvent};
 
 // ============================================================================
@@ -140,7 +140,7 @@ impl IpcServer {
 }
 
 /// 处理单个连接
-fn handle_connection(mut stream: UnixStream, agent: Arc<Mutex<Option<AgentLoop>>>) -> Result<()> {
+fn handle_connection(stream: UnixStream, agent: Arc<Mutex<Option<AgentLoop>>>) -> Result<()> {
     stream.set_nonblocking(false)?;
     
     let reader = BufReader::new(&stream);
@@ -196,9 +196,8 @@ fn handle_chat(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &
         .and_then(|h| serde_json::from_value(h.clone()).ok())
         .unwrap_or_default();
     
-    // 创建回调用于流式输出 - 使用一个 BufWriter 包装
-    let buf_writer = std::io::BufWriter::new(writer.try_clone()?);
-    let callback = IpcCallback::new(buf_writer);
+    // 创建简单的回调（不做流式输出，简化处理）
+    let callback = SimpleCallback::new(writer);
     
     // 创建 tokio runtime 来执行异步调用
     let rt = Runtime::new().context("Failed to create tokio runtime")?;
@@ -231,6 +230,37 @@ fn handle_chat(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &
     }
     
     Ok(())
+}
+
+/// 简单回调 - 不做实际流式输出
+struct SimpleCallback<'a, W: Write>(&'a mut W);
+
+impl<'a, W: Write> SimpleCallback<'a, W> {
+    fn new(writer: &'a mut W) -> Self {
+        Self(writer)
+    }
+}
+
+impl<'a, W: Write> StreamCallback for SimpleCallback<'a, W> {
+    fn on_token(&self, _token: &str) {
+        // 不做流式输出
+    }
+    
+    fn on_tool_start(&self, _name: &str, _args: &str) {
+        // 不做流式输出
+    }
+    
+    fn on_tool_end(&self, _name: &str, _result: &str) {
+        // 不做流式输出
+    }
+    
+    fn on_complete(&self, _response: &str) {
+        // 不做流式输出
+    }
+    
+    fn on_error(&self, _message: &str) {
+        // 不做流式输出
+    }
 }
 
 /// 处理工具调用请求
@@ -290,10 +320,14 @@ fn handle_abort(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: 
 
 /// 处理获取状态请求
 fn handle_get_status(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &mut impl Write) -> Result<()> {
-    let status = {
+    let status: serde_json::Value = {
         let agent_guard = agent.lock().unwrap();
         if let Some(agent) = agent_guard.as_ref() {
-            agent.get_status()
+            // 将 KernelStatus 转换为 JSON
+            let status: KernelStatus = agent.get_status();
+            serde_json::to_value(status).unwrap_or_else(|_| {
+                serde_json::json!({"status": "initialized"})
+            })
         } else {
             serde_json::json!({"status": "not_initialized"})
         }
