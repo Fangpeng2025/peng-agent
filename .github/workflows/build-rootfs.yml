@@ -30,7 +30,7 @@ jobs:
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r26d
+          ndk-version: r27c
           add-to-path: true
 
       - name: Build peng-daemon
@@ -39,9 +39,12 @@ jobs:
           
           # 设置 NDK 工具链
           export ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}
-          export TOOLCHAIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"
           
-          # 使用正确的 clang 版本
+          # 列出可用的工具
+          ls -la "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/" | head -20
+          
+          # 使用 clang（不带版本号）
+          export TOOLCHAIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"
           export CC_aarch64_linux_android="${TOOLCHAIN}/bin/aarch64-linux-android-clang"
           export AR_aarch64_linux_android="${TOOLCHAIN}/bin/llvm-ar"
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${TOOLCHAIN}/bin/aarch64-linux-android-clang"
