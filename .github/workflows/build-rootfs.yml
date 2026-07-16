@@ -35,6 +35,8 @@ jobs:
 
       - name: Build peng-daemon
         run: |
+          cd crates
+          
           # 设置 NDK 工具链
           export ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}
           
@@ -63,7 +65,7 @@ jobs:
 
       - name: Copy peng-daemon to assets
         run: |
-          cp target/aarch64-linux-android/release/peng-daemon app/src/main/assets/
+          cp crates/target/aarch64-linux-android/release/peng-daemon app/src/main/assets/
 
       - name: Build APK
         run: |
