@@ -39,9 +39,12 @@ jobs:
           
           # 设置 NDK 工具链
           export ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}
-          export CC_aarch64_linux_android="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
-          export AR_aarch64_linux_android="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${CC_aarch64_linux_android}"
+          export TOOLCHAIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"
+          
+          # 使用正确的 clang 版本
+          export CC_aarch64_linux_android="${TOOLCHAIN}/bin/aarch64-linux-android-clang"
+          export AR_aarch64_linux_android="${TOOLCHAIN}/bin/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${TOOLCHAIN}/bin/aarch64-linux-android-clang"
           
           cargo build --release --target aarch64-linux-android -p peng-daemon
 
