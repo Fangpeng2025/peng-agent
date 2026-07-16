@@ -15,59 +15,8 @@ use peng_core::{AgentLoop, ChatMessage, StreamCallback, KernelStatus};
 use crate::protocol::{Request, Response, StreamEvent};
 
 // ============================================================================
-// IPC Callback - 流式输出回调
+// 简单回调 - 不做实际流式输出
 // ============================================================================
-
-/// IPC 流式回调，将事件通过 Unix Socket 发送给 Kotlin 端
-struct IpcCallback<W: Write + Send> {
-    writer: Arc<Mutex<W>>,
-}
-
-impl<W: Write + Send> IpcCallback<W> {
-    fn new(writer: W) -> Self {
-        Self {
-            writer: Arc::new(Mutex::new(writer)),
-        }
-    }
-    
-    fn send_event(&self, event: StreamEvent) {
-        let response = Response::event(event);
-        let mut writer = self.writer.lock().unwrap();
-        if let Err(e) = write_response(&mut *writer, &response) {
-            error!("Failed to send event: {}", e);
-        }
-    }
-}
-
-impl<W: Write + Send> StreamCallback for IpcCallback<W> {
-    fn on_token(&self, token: &str) {
-        self.send_event(StreamEvent::Token { data: token.to_string() });
-    }
-    
-    fn on_tool_start(&self, name: &str, args: &str) {
-        self.send_event(StreamEvent::ToolStart {
-            name: name.to_string(),
-            args: args.to_string(),
-        });
-    }
-    
-    fn on_tool_end(&self, name: &str, result: &str) {
-        self.send_event(StreamEvent::ToolEnd {
-            name: name.to_string(),
-            result: result.to_string(),
-        });
-    }
-    
-    fn on_complete(&self, _response: &str) {
-        // Complete 事件在 handle_chat 中单独发送
-    }
-    
-    fn on_error(&self, message: &str) {
-        self.send_event(StreamEvent::Error { message: message.to_string() });
-    }
-}
-
-/// 简单回调 - 不做实际流式输出，用于非流式调用
 struct SimpleCallback;
 
 impl StreamCallback for SimpleCallback {
@@ -207,9 +156,8 @@ fn handle_chat(request: Request, agent: Arc<Mutex<Option<AgentLoop>>>, writer: &
         .and_then(|h| serde_json::from_value(h.clone()).ok())
         .unwrap_or_default();
     
-    // 创建回调用于流式输出
-    let writer_clone = writer.try_clone()?;
-    let callback = IpcCallback::new(writer_clone);
+    // 使用简单回调（不做流式输出，简化处理）
+    let callback = SimpleCallback;
     
     // 创建 tokio runtime 来执行异步调用
     let rt = Runtime::new().context("Failed to create tokio runtime")?;
