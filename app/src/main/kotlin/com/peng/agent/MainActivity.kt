@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -78,9 +79,11 @@ import com.peng.agent.setup.SetupState
 import com.peng.agent.setup.SetupStep
 import com.peng.agent.ui.ChatScreen
 import com.peng.agent.ui.KanbanScreen
+import com.peng.agent.ui.LinuxTerminalScreen
 import com.peng.agent.ui.MemoryPage
 import com.peng.agent.ui.SettingsScreen
 import com.peng.agent.ui.SkillsScreen
+import com.peng.agent.ubuntu.UbuntuRuntime
 import com.peng.agent.ui.theme.BrandPrimary
 import com.peng.agent.ui.theme.PengTheme
 import kotlinx.coroutines.CoroutineScope
@@ -100,7 +103,7 @@ enum class AppTab(
 ) {
     CHAT("聊天", Icons.Outlined.ChatBubbleOutline),
     SKILLS("技能", Icons.Outlined.SmartToy),
-    KANBAN("看板", Icons.Outlined.GridView),
+    TERMINAL("终端", Icons.Outlined.Terminal),
     MEMORY("记忆", Icons.Outlined.Psychology),
     SETTINGS("设置", Icons.Outlined.Settings)
 }
@@ -410,7 +413,7 @@ fun MainAppContent(
             when (tab) {
                 AppTab.CHAT -> ChatScreen(client = client)
                 AppTab.SKILLS -> SkillsScreen(client = client, onSkillClick = { /* TODO */ })
-                AppTab.KANBAN -> KanbanScreen(client = client)
+                AppTab.TERMINAL -> LinuxTerminalScreen(ubuntuRuntime = PengApplication.ubuntuRuntime)
                 AppTab.MEMORY -> MemoryPage(client = client)
                 AppTab.SETTINGS -> SettingsScreen(client = client)
             }

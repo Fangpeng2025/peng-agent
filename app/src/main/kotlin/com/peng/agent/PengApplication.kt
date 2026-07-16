@@ -6,6 +6,7 @@ import android.util.Log
 import com.peng.agent.client.IpcBackendClient
 import com.peng.agent.daemon.DaemonService
 import com.peng.agent.setup.UbuntuManager
+import com.peng.agent.ubuntu.UbuntuRuntime
 
 /**
  * 鹏 Agent 应用
@@ -26,6 +27,11 @@ class PengApplication : Application() {
         private var _client: IpcBackendClient? = null
         val client: IpcBackendClient
             get() = _client ?: error("BackendClient not initialized")
+        
+        // Ubuntu Runtime 实例
+        private var _ubuntuRuntime: UbuntuRuntime? = null
+        val ubuntuRuntime: UbuntuRuntime?
+            get() = _ubuntuRuntime
     }
 
     override fun onCreate() {
@@ -33,6 +39,9 @@ class PengApplication : Application() {
         appContext = this
         
         Log.i(TAG, "🚀 PengAgent 启动...")
+        
+        // 初始化 Ubuntu Runtime
+        _ubuntuRuntime = UbuntuRuntime(this)
         
         // 初始化 IPC 客户端
         initializeIpcClient()
