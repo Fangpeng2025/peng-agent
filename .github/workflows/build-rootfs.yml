@@ -2,13 +2,13 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master, main ]
     paths:
       - 'crates/**'
       - 'app/**'
       - '.github/workflows/**'
   pull_request:
-    branches: [ main ]
+    branches: [ master, main ]
   workflow_dispatch:
 
 env:
